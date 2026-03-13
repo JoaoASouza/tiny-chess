@@ -307,7 +307,7 @@ int getEscapeFromCheck(int board[8][8], int whiteTurn) {
         for (int j = 0; j < 8 && !foundEscape; j++) {
             int p = board[i][j];
             if (p == EMPTY) continue;
-            if ((!whiteTurn && isPieceWhite(p)) || (whiteTurn && isPieceBlack(p))) {
+            if ((whiteTurn && isPieceWhite(p)) || (!whiteTurn && isPieceBlack(p))) {
                 for (int ii = 0; ii < 8 && !foundEscape; ii++) {
                     for (int jj = 0; jj < 8 && !foundEscape; jj++) {
                         if (i == ii && j == jj) continue;
@@ -325,7 +325,7 @@ int getEscapeFromCheck(int board[8][8], int whiteTurn) {
                         int backupDst = destP;
                         board[i][j] = EMPTY;
                         board[ii][jj] = p;
-                        if (!isKingInCheck(board, !whiteTurn))  {
+                        if (!isKingInCheck(board, whiteTurn))  {
                             foundEscape = 1;
                         }
                         // Undo
@@ -393,7 +393,7 @@ int isCastlingMove(int board[8][8], int piece, char move[5], int canCastle) {
     return 0;
 }
 
-int main() {
+void localMultiplayerGame() {
     int board[8][8] = {0}; 
     int totalCaputredWhitePieces = 0;
     int totalCapturedBlackPieces = 0;
@@ -554,5 +554,30 @@ int main() {
         }
         whiteTurn = !whiteTurn;
     }
+
+    printf("Press Enter to return to main menu...");
+    getchar(); // Consume leftover newline
+    getchar(); // Wait for user to press Enter
+}
+
+int main() {
+
+    while(1) {
+        printf("Welcome to Tiny Chess!\n");
+        printf("1. Local Multiplayer\n");
+        printf("2. Exit\n");
+        printf("Select an option: ");
+        int option;
+        scanf("%d", &option);
+        if (option == 1) {
+            localMultiplayerGame();
+        } else if (option == 2) {
+            printf("Goodbye!\n");
+            break;
+        } else {
+            printf("Invalid option. Please try again.\n");
+        }
+    }
+
     return 0;
 }
