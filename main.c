@@ -94,6 +94,8 @@ void localMultiplayerGame() {
     printf("Press Enter to return to main menu...");
     getchar(); // Consume leftover newline
     getchar(); // Wait for user to press Enter
+
+    freeMoveHistory(state.moveList);
 }
 
 int main() {

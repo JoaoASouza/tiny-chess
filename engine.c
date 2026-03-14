@@ -358,6 +358,15 @@ void printMoveHistory(MoveNode* head) {
     }
 }
 
+void freeMoveHistory(MoveNode* head) {
+    MoveNode* current = head;
+    while (current) {
+        MoveNode* temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
 void initializeGameState(GameState* state) {
     memset(state->board, 0, sizeof(state->board));
     memset(state->capturedWhitePieces, 0, sizeof(state->capturedWhitePieces));

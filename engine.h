@@ -51,13 +51,16 @@ int getEscapeFromCheck(GameState* state);
 void checkForEnPassantCandidates(GameState* state, char move[5], int piece);
 void handleCapture(GameState* state, char move[5], int piece, int destinationPiece, int enPassantMove);
 void handlePromotion(GameState* state, char move[5], int piece);
+void promotePawn(int board[8][8], char move[5], int isWhite);
 void doMove(GameState* state, char move[5], int piece, int castlingMove);
 void undoMove(GameState* state, char move[5], int piece, int destinationPiece);
 int isEnPassantMove(GameState state, char move[5]);
 int isCastlingMove(GameState state, int piece, char move[5]);
 int isDiagonalMoveValid(int board[8][8], char move[5], int maxDistance);
 int isCrossMoveValid(int board[8][8], char move[5], int maxDistance);
-void promotePawn(int board[8][8], char move[5], int isWhite);
 void handleStateChange(GameState* state, char move[5], int piece);
+void pushMoveToHistory(MoveNode** head, char move[5]);
+void freeMoveHistory(MoveNode* head);
+void printMoveHistory(MoveNode* head);
 
 #endif
