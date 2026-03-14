@@ -375,6 +375,7 @@ void initializeGameState(GameState* state) {
     state->totalCapturedWhitePieces = 0;
     state->totalCapturedBlackPieces = 0;
     state->enPassantCandidatesCount = 0;
+    state->enPassantSquare[0] = '\0';
     state->whiteKingMoved = 0;
     state->blackKingMoved = 0;
     state->whiteKingsideRookMoved = 0;
@@ -383,21 +384,28 @@ void initializeGameState(GameState* state) {
     state->blackQueensideRookMoved = 0;
     state->whiteTurn = 1;
     state->moveList = NULL;
+    state->halfmoveClock = 0;
+    state->fullmoveNumber = 0;
+
+    setupBoard(state->board);
 }
 
 void checkForEnPassantCandidates(GameState* state, char move[5], int piece) {
     if (piece == WHITE_PAWN && move[1] == '2' && move[3] == '4') {
+        strcpy(state->enPassantSquare, (char[]){move[0], '3', '\0'});
         if ( getPiece(state->board, (char[]){move[0] + 1, '4', '\0'}) == BLACK_PAWN)
             strcpy(state->enPassantCandidates[state->enPassantCandidatesCount++], (char[]){ move[0] + 1, '4', '\0' });
         if ( getPiece(state->board, (char[]){move[0] - 1, '4', '\0'}) == BLACK_PAWN)
             strcpy(state->enPassantCandidates[state->enPassantCandidatesCount++], (char[]){ move[0] - 1, '4', '\0' });
 
     } else if (piece == BLACK_PAWN && move[1] == '7' && move[3] == '5') {
+        strcpy(state->enPassantSquare, (char[]){move[0], '6', '\0'});
         if ( getPiece(state->board, (char[]){move[0] + 1, '5', '\0'}) == WHITE_PAWN)
             strcpy(state->enPassantCandidates[state->enPassantCandidatesCount++], (char[]){ move[0] + 1, '5', '\0' });
         if ( getPiece(state->board, (char[]){move[0] - 1, '5', '\0'}) == WHITE_PAWN)
             strcpy(state->enPassantCandidates[state->enPassantCandidatesCount++], (char[]){ move[0] - 1, '5', '\0' });
     } else {
+        state->enPassantSquare[0] = '\0';
         state->enPassantCandidatesCount = 0;
     }
 }
@@ -464,5 +472,15 @@ void handleStateChange(GameState *state, char move[5], int piece) {
         else if (move[0] == 'h' && move[1] == '8') state->blackKingsideRookMoved = 1;
     }
 
+    if (piece == WHITE_PAWN || piece == BLACK_PAWN || getPiece(state->board, move + 2) != EMPTY || isEnPassantMove(*state, move))
+        state->halfmoveClock = 0;
+    else
+        state->halfmoveClock++;
+    
+    if (!state->whiteTurn)
+        state->fullmoveNumber++;
+
     pushMoveToHistory(&state->moveList, move);
+
+    state->whiteTurn = !state->whiteTurn;
 }

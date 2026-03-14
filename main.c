@@ -29,10 +29,96 @@ void printState(GameState state) {
     printf("\n");
 }
 
+char * stateToFEN(char * fen, GameState state) {
+    // board representation
+    int index = 0;
+    for (int i = 0; i < 8; i++) {
+        int emptyCount = 0;
+        for (int j = 0; j < 8; j++) {
+            if (state.board[i][j] == EMPTY) {
+                emptyCount++;
+            } else {
+                if (emptyCount > 0) {
+                    fen[index++] = '0' + emptyCount;
+                    emptyCount = 0;
+                }
+                fen[index++] = pieceToFENChar(state.board[i][j]);
+            }
+        }
+        if (emptyCount > 0) {
+            fen[index++] = '0' + emptyCount;
+        }
+        if (i < 7) {
+            fen[index++] = '/';
+        }
+    }
+
+    //turn 
+    fen[index++] = ' ';
+    fen[index++] = state.whiteTurn ? 'w' : 'b';
+    fen[index] = '\0';
+
+    // castling rights
+    char castlingRights[5] = "";
+    if (!state.whiteKingMoved) {
+        if (!state.whiteKingsideRookMoved) strcat(castlingRights, "K");
+        if (!state.whiteQueensideRookMoved) strcat(castlingRights, "Q");
+    }
+    if (!state.blackKingMoved) {
+        if (!state.blackKingsideRookMoved) strcat(castlingRights, "k");
+        if (!state.blackQueensideRookMoved) strcat(castlingRights, "q");
+    }
+    if (strlen(castlingRights) == 0) {
+        strcat(castlingRights, "-");
+    }
+    strcat(fen, " ");
+    strcat(fen, castlingRights);
+
+    // en passant target square
+    strcat(fen, " ");
+    strcat(fen, state.enPassantSquare[0] != '\0' ? state.enPassantSquare : "-");
+
+    // halfmove clock and fullmove number
+    char halfmoveClockStr[3];
+    sprintf(halfmoveClockStr, "%d", state.halfmoveClock);
+    char fullmoveNumberStr[4];
+    sprintf(fullmoveNumberStr, "%d", state.fullmoveNumber);
+    strcat(fen, " ");
+    strcat(fen, halfmoveClockStr);
+    strcat(fen, " ");
+    strcat(fen, fullmoveNumberStr);
+
+    return fen;
+}
+
+void handleSaveGame(GameState* state) {
+    printf("Do you want to save the game? (y/n): ");
+    char choice;
+    scanf(" %c", &choice);
+    if (choice != 'y' && choice != 'Y') return;
+
+    FILE* file = fopen("saved_game.tcg", "w+");
+    if (!file) {
+        printf("Error saving game.\n");
+        return;
+    }
+
+    char * fenString = malloc(100 * sizeof(char));
+    stateToFEN(fenString, *state);
+    fprintf(file, "%s\n", fenString);
+    free(fenString);
+
+    MoveNode* current = state->moveList;
+    while (current) {
+        fprintf(file, "%s\n", current->move);
+        current = current->next;
+    }
+    fclose(file);
+}
+
 void localMultiplayerGame() {
     GameState state;
     initializeGameState(&state);
-    setupBoard(state.board);
 
     char message[100] = "";
     char move[5];
@@ -76,9 +162,9 @@ void localMultiplayerGame() {
             continue;
         }
         handleCapture(&state, move, piece, destinationPiece, enPassantMove);
-        handleStateChange(&state, move, piece);
 
         int opponentInCheck = isKingInCheck(&state, !(state.whiteTurn));
+        handleStateChange(&state, move, piece);
         if (opponentInCheck) {
             if (!getEscapeFromCheck(&state)) {
                 printBoard(state, message);
@@ -88,12 +174,9 @@ void localMultiplayerGame() {
         }
 
         message[0] = '\0';
-        state.whiteTurn = !state.whiteTurn;
     }
 
-    printf("Press Enter to return to main menu...");
-    getchar(); // Consume leftover newline
-    getchar(); // Wait for user to press Enter
+    handleSaveGame(&state);
 
     freeMoveHistory(state.moveList);
 }
@@ -101,6 +184,7 @@ void localMultiplayerGame() {
 int main() {
 
     while(1) {
+        clearScreen();
         printf("[1] Local Multiplayer\n");
         printf("[0] Exit\n");
         printf("Select an option: ");

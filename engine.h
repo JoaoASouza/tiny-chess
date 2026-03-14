@@ -31,14 +31,18 @@ typedef struct GameState {
     int capturedBlackPieces[16];
     int totalCapturedWhitePieces;
     int totalCapturedBlackPieces;
+    char enPassantSquare[3];
     char enPassantCandidates[8][3];
     char enPassantCandidatesCount;
     int whiteKingMoved, blackKingMoved;
     int whiteKingsideRookMoved, whiteQueensideRookMoved;
     int blackKingsideRookMoved, blackQueensideRookMoved;
+    int halfmoveClock;
+    int fullmoveNumber;
     MoveNode* moveList;
 } GameState;
 
+char pieceToFENChar(int piece);
 void initializeGameState(GameState* state);
 void setupBoard(int board[8][8]);
 int getPiece(int board[8][8], char coordinate[2]);
