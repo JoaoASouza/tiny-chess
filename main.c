@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include "engine.h"
 #include "renderer.h"
+
+#define MULTIPLAYER_MODE 1
+#define AI_MODE 2
 
 void printState(GameState state) {
     printf("White's turn: %d\n", state.whiteTurn);
@@ -29,68 +35,6 @@ void printState(GameState state) {
     printf("\n");
 }
 
-char * stateToFEN(char * fen, GameState state) {
-    // board representation
-    int index = 0;
-    for (int i = 0; i < 8; i++) {
-        int emptyCount = 0;
-        for (int j = 0; j < 8; j++) {
-            if (state.board[i][j] == EMPTY) {
-                emptyCount++;
-            } else {
-                if (emptyCount > 0) {
-                    fen[index++] = '0' + emptyCount;
-                    emptyCount = 0;
-                }
-                fen[index++] = pieceToFENChar(state.board[i][j]);
-            }
-        }
-        if (emptyCount > 0) {
-            fen[index++] = '0' + emptyCount;
-        }
-        if (i < 7) {
-            fen[index++] = '/';
-        }
-    }
-
-    //turn 
-    fen[index++] = ' ';
-    fen[index++] = state.whiteTurn ? 'w' : 'b';
-    fen[index] = '\0';
-
-    // castling rights
-    char castlingRights[5] = "";
-    if (!state.whiteKingMoved) {
-        if (!state.whiteKingsideRookMoved) strcat(castlingRights, "K");
-        if (!state.whiteQueensideRookMoved) strcat(castlingRights, "Q");
-    }
-    if (!state.blackKingMoved) {
-        if (!state.blackKingsideRookMoved) strcat(castlingRights, "k");
-        if (!state.blackQueensideRookMoved) strcat(castlingRights, "q");
-    }
-    if (strlen(castlingRights) == 0) {
-        strcat(castlingRights, "-");
-    }
-    strcat(fen, " ");
-    strcat(fen, castlingRights);
-
-    // en passant target square
-    strcat(fen, " ");
-    strcat(fen, state.enPassantSquare[0] != '\0' ? state.enPassantSquare : "-");
-
-    // halfmove clock and fullmove number
-    char halfmoveClockStr[3];
-    sprintf(halfmoveClockStr, "%d", state.halfmoveClock);
-    char fullmoveNumberStr[4];
-    sprintf(fullmoveNumberStr, "%d", state.fullmoveNumber);
-    strcat(fen, " ");
-    strcat(fen, halfmoveClockStr);
-    strcat(fen, " ");
-    strcat(fen, fullmoveNumberStr);
-
-    return fen;
-}
-
 void handleSaveGame(GameState* state) {
     printf("Do you want to save the game? (y/n): ");
     char choice;
@@ -108,25 +52,183 @@ void handleSaveGame(GameState* state) {
     fprintf(file, "%s\n", fenString);
     free(fenString);
 
-    MoveNode* current = state->moveList;
+    printMoveHistory(state->moveListStart);
+    MoveNode* current = state->moveListStart;
     while (current) {
-        fprintf(file, "%s\n", current->move);
+        fprintf(file, "%s ", current->move);
         current = current->next;
     }
+    fprintf(file, "\n");
     fclose(file);
 }
 
-void localMultiplayerGame() {
+void getMoveInputFromLocalPlayer(char move[5], int whiteTurn) {
+    printf("%s's move (e.g., e2e4): ", whiteTurn ? "White" : "Black");
+    scanf("%s", move);
+}
+
+FILE *sopen(const char *program) {
+    int fds[2];
+    pid_t pid;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) < 0)
+        return NULL;
+
+    switch(pid=vfork()) {
+    case -1:    /* Error */
+        close(fds[0]);
+        close(fds[1]);
+        return NULL;
+    case 0:     /* child */
+        close(fds[0]);
+        dup2(fds[1], 0);
+        dup2(fds[1], 1);
+        close(fds[1]);
+        execl("/bin/sh", "sh", "-c", program, NULL);
+        _exit(127);
+    }
+    /* parent */
+    close(fds[1]);
+    return fdopen(fds[0], "r+");
+}
+
+void getMoveInputFromAI(char move[5], GameState state) {
+    char outputBuffer[128];
+    char * fenString = malloc(100 * sizeof(char));
+
+    stateToFEN(fenString, state);
+
+    FILE* fp = sopen("stockfish");
+    if (fp == NULL) {
+        printf("Failed to run Stockfish.\n");
+        move[0] = '\0';
+        free(fenString);
+        return;
+    }
+
+    fprintf(fp, "position fen %s\n", fenString);
+    fprintf(fp, "go depth 10\n");
+
+    while (fgets(outputBuffer, sizeof(outputBuffer), fp) != NULL) {
+        // printf("Stockfish output: %s", outputBuffer);
+        if (strncmp(outputBuffer, "bestmove", 8) == 0) {
+            sscanf(outputBuffer, "bestmove %s", move);
+            break;
+        }
+    }
+    fprintf(fp, "quit\n");
+    fclose(fp);
+
+    free(fenString);
+}
+
+void getMoveInput(char move[5], int mode, GameState state) {
+    switch (mode) {
+        case MULTIPLAYER_MODE:
+            getMoveInputFromLocalPlayer(move, state.whiteTurn);
+            break;
+        case AI_MODE:
+            if (state.whiteTurn)
+                getMoveInputFromLocalPlayer(move, state.whiteTurn);
+            else
+                getMoveInputFromAI(move, state);
+            break;
+        default:
+            printf("Invalid game mode.\n");
+            move[0] = '\0';
+    }
+}
+
+void setupBot() {
+    FILE *fp = popen("stockfish ucinewgame", "r");
+    if (fp == NULL) {
+        printf("Failed to run Stockfish.\n");
+        return;
+    }
+    pclose(fp);
+}
+
+void loadGameStateFromFEN(GameState* state, char* fen) {
+    char* token = strtok(fen, " ");
+    int row = 0, col = 0;
+    for (int i = 0; token[i] != '\0'; i++) {
+        if (token[i] == '/') {
+            row++;
+            col = 0;
+        } else if (token[i] >= '1' && token[i] <= '8') {
+            int emptySquares = token[i] - '0';
+            for (int j = 0; j < emptySquares; j++) {
+                state->board[row][col++] = EMPTY;
+            }
+        } else {
+            state->board[row][col++] = FENCharToPiece(token[i]);
+        }
+    }
+
+    token = strtok(NULL, " ");
+    state->whiteTurn = (token[0] == 'w');
+
+    token = strtok(NULL, " ");
+    state->whiteKingMoved = !strchr(token, 'K');
+    state->whiteKingsideRookMoved = !strchr(token, 'K');
+    state->whiteQueensideRookMoved = !strchr(token, 'Q');
+    state->blackKingMoved = !strchr(token, 'k');
+    state->blackKingsideRookMoved = !strchr(token, 'k');
+    state->blackQueensideRookMoved = !strchr(token, 'q');
+
+    token = strtok(NULL, " ");
+    if (token[0] != '-') {
+        strcpy(state->enPassantSquare, token);
+    } else {
+        state->enPassantSquare[0] = '\0';
+    }
+
+    token = strtok(NULL, " ");
+    state->halfmoveClock = atoi(token);
+
+    token = strtok(NULL, " ");
+    state->fullmoveNumber = atoi(token);
+
+}
+
+void promptGameLoad(GameState* state) {
+    printf("Do you want to load a saved game? (y/n): ");
+    char choice;
+    scanf(" %c", &choice);
+    if (choice != 'y' && choice != 'Y') return;
+
+    FILE* file = fopen("saved_game.tcg", "r");
+    if (!file) {
+        printf("No saved game found.\n");
+        return;
+    }
+
+    char fenString[100];
+    fgets(fenString, sizeof(fenString), file);
+    loadGameStateFromFEN(state, fenString);
+
+    char moveHistoryLine[1000];
+    fgets(moveHistoryLine, sizeof(moveHistoryLine), file);
+    char* token = strtok(moveHistoryLine, " ");
+    while (token) {
+        pushMoveToHistory(&state->moveListStart, &state->moveListEnd, token);
+        token = strtok(NULL, " ");
+    }
+
+    fclose(file);
+}
+
+void gameLoop(int mode) {
     GameState state;
     initializeGameState(&state);
+    promptGameLoad(&state);
 
     char message[100] = "";
     char move[5];
 
     while (1) {
         printBoard(state, message);
-        printf("%s's move (e.g., e2e4): ", state.whiteTurn ? "White" : "Black");
-        scanf("%s", move);
+        getMoveInput(move, mode, state);
 
         if (move[0] == 'q') break;
         if (move[4] != '\0') {
@@ -178,7 +280,7 @@ void localMultiplayerGame() {
 
     handleSaveGame(&state);
 
-    freeMoveHistory(state.moveList);
+    freeMoveHistory(state.moveListStart);
 }
 
 int main() {
@@ -186,12 +288,16 @@ int main() {
     while(1) {
         clearScreen();
         printf("[1] Local Multiplayer\n");
+        printf("[2] Play against AI\n");
         printf("[0] Exit\n");
         printf("Select an option: ");
         int option;
         scanf("%d", &option);
         if (option == 1) {
-            localMultiplayerGame();
+            gameLoop(MULTIPLAYER_MODE);
+        } else if (option == 2) {
+            setupBot();
+            gameLoop(AI_MODE);
         } else if (option == 0) {
             break;
         } else {

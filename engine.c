@@ -1,5 +1,40 @@
 #include "engine.h"
 
+char pieceToFENChar(int piece) {
+    switch (piece) {
+        case WHITE_PAWN: return 'P';
+        case BLACK_PAWN: return 'p';
+        case WHITE_KNIGHT: return 'N';
+        case BLACK_KNIGHT: return 'n';
+        case WHITE_BISHOP: return 'B';
+        case BLACK_BISHOP: return 'b';
+        case WHITE_ROOK: return 'R';
+        case BLACK_ROOK: return 'r';
+        case WHITE_QUEEN: return 'Q';
+        case BLACK_QUEEN: return 'q';
+        case WHITE_KING: return 'K';
+        case BLACK_KING: return 'k';
+        default: return ' ';
+    }
+}
+
+char FENCharToPiece(int c) {
+    switch (c) {
+        case 'P': return WHITE_PAWN;
+        case 'p': return BLACK_PAWN;
+        case 'N': return WHITE_KNIGHT;
+        case 'n': return BLACK_KNIGHT;
+        case 'B': return WHITE_BISHOP;
+        case 'b': return BLACK_BISHOP;
+        case 'R': return WHITE_ROOK;
+        case 'r': return BLACK_ROOK;
+        case 'Q': return WHITE_QUEEN;
+        case 'q': return BLACK_QUEEN;
+        case 'K': return WHITE_KING;
+        case 'k': return BLACK_KING;
+        default: return EMPTY;
+    }
+}
 int isPieceWhite(int piece) {
     return piece != EMPTY && piece % 2 == 1;
 }
@@ -52,6 +87,68 @@ void setupBoard(int board[8][8]) {
         setPiece(board, BLACK_PAWN, coordinate);
     }
 
+}
+
+char * stateToFEN(char * fen, GameState state) {
+    // board representation
+    int index = 0;
+    for (int i = 0; i < 8; i++) {
+        int emptyCount = 0;
+        for (int j = 0; j < 8; j++) {
+            if (state.board[i][j] == EMPTY) {
+                emptyCount++;
+            } else {
+                if (emptyCount > 0) {
+                    fen[index++] = '0' + emptyCount;
+                    emptyCount = 0;
+                }
+                fen[index++] = pieceToFENChar(state.board[i][j]);
+            }
+        }
+        if (emptyCount > 0) {
+            fen[index++] = '0' + emptyCount;
+        }
+        if (i < 7) {
+            fen[index++] = '/';
+        }
+    }
+
+    //turn 
+    fen[index++] = ' ';
+    fen[index++] = state.whiteTurn ? 'w' : 'b';
+    fen[index] = '\0';
+
+    // castling rights
+    char castlingRights[5] = "";
+    if (!state.whiteKingMoved) {
+        if (!state.whiteKingsideRookMoved) strcat(castlingRights, "K");
+        if (!state.whiteQueensideRookMoved) strcat(castlingRights, "Q");
+    }
+    if (!state.blackKingMoved) {
+        if (!state.blackKingsideRookMoved) strcat(castlingRights, "k");
+        if (!state.blackQueensideRookMoved) strcat(castlingRights, "q");
+    }
+    if (strlen(castlingRights) == 0) {
+        strcat(castlingRights, "-");
+    }
+    strcat(fen, " ");
+    strcat(fen, castlingRights);
+
+    // en passant target square
+    strcat(fen, " ");
+    strcat(fen, state.enPassantSquare[0] != '\0' ? state.enPassantSquare : "-");
+
+    // halfmove clock and fullmove number
+    char halfmoveClockStr[3];
+    sprintf(halfmoveClockStr, "%d", state.halfmoveClock);
+    char fullmoveNumberStr[4];
+    sprintf(fullmoveNumberStr, "%d", state.fullmoveNumber);
+    strcat(fen, " ");
+    strcat(fen, halfmoveClockStr);
+    strcat(fen, " ");
+    strcat(fen, fullmoveNumberStr);
+
+    return fen;
 }
 
 int isDiagonalMoveValid(int board[8][8], char move[5], int maxDistance) {
@@ -342,11 +439,17 @@ int isCastlingMove(GameState state, int piece, char move[5]) {
     return 0;
 }
 
-void pushMoveToHistory(MoveNode** head, char move[5]) {
+void pushMoveToHistory(MoveNode** head, MoveNode** end, char move[5]) {
     MoveNode* newNode = malloc(sizeof(MoveNode));
     strncpy(newNode->move, move, 5);
-    newNode->next = *head;
-    *head = newNode;
+    if (*end != NULL) {
+        (*end)->next = newNode;
+    } else {
+        *head = newNode;
+    }
+    *end = newNode;
+    newNode->next = NULL;
+    printMoveHistory(*head);
 }
 
 void printMoveHistory(MoveNode* head) {
@@ -383,7 +486,8 @@ void initializeGameState(GameState* state) {
     state->blackKingsideRookMoved = 0;
     state->blackQueensideRookMoved = 0;
     state->whiteTurn = 1;
-    state->moveList = NULL;
+    state->moveListStart = NULL;
+    state->moveListEnd = NULL;
     state->halfmoveClock = 0;
     state->fullmoveNumber = 0;
 
@@ -480,7 +584,7 @@ void handleStateChange(GameState *state, char move[5], int piece) {
     if (!state->whiteTurn)
         state->fullmoveNumber++;
 
-    pushMoveToHistory(&state->moveList, move);
+    pushMoveToHistory(&state->moveListStart, &state->moveListEnd, move);
 
     state->whiteTurn = !state->whiteTurn;
 }

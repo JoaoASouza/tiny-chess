@@ -39,10 +39,13 @@ typedef struct GameState {
     int blackKingsideRookMoved, blackQueensideRookMoved;
     int halfmoveClock;
     int fullmoveNumber;
-    MoveNode* moveList;
+    MoveNode* moveListStart;
+    MoveNode* moveListEnd;
 } GameState;
 
+char * stateToFEN(char * fen, GameState state);
 char pieceToFENChar(int piece);
+char FENCharToPiece(int c);
 void initializeGameState(GameState* state);
 void setupBoard(int board[8][8]);
 int getPiece(int board[8][8], char coordinate[2]);
@@ -63,7 +66,7 @@ int isCastlingMove(GameState state, int piece, char move[5]);
 int isDiagonalMoveValid(int board[8][8], char move[5], int maxDistance);
 int isCrossMoveValid(int board[8][8], char move[5], int maxDistance);
 void handleStateChange(GameState* state, char move[5], int piece);
-void pushMoveToHistory(MoveNode** head, char move[5]);
+void pushMoveToHistory(MoveNode** head, MoveNode** end, char move[5]);
 void freeMoveHistory(MoveNode* head);
 void printMoveHistory(MoveNode* head);
 

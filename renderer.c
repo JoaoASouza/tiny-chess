@@ -19,23 +19,7 @@ char* pieceToChar(int piece) {
     }
 }
 
-char pieceToFENChar(int piece) {
-    switch (piece) {
-        case WHITE_PAWN: return 'P';
-        case BLACK_PAWN: return 'p';
-        case WHITE_KNIGHT: return 'N';
-        case BLACK_KNIGHT: return 'n';
-        case WHITE_BISHOP: return 'B';
-        case BLACK_BISHOP: return 'b';
-        case WHITE_ROOK: return 'R';
-        case BLACK_ROOK: return 'r';
-        case WHITE_QUEEN: return 'Q';
-        case BLACK_QUEEN: return 'q';
-        case WHITE_KING: return 'K';
-        case BLACK_KING: return 'k';
-        default: return ' ';
-    }
-}
+
 
 void clearScreen() {
     printf("\033[H\033[J");
