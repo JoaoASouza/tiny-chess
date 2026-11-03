@@ -3,18 +3,18 @@
 
 char* pieceToChar(int piece) {
     switch (piece) {
-        case WHITE_PAWN: return "\033[37m*";
-        case BLACK_PAWN: return "\033[30m*";
-        case WHITE_KNIGHT: return "\033[37m&";
-        case BLACK_KNIGHT: return "\033[30m&";
-        case WHITE_BISHOP: return "\033[37m+";
-        case BLACK_BISHOP: return "\033[30m+";
-        case WHITE_ROOK: return "\033[37mT";
-        case BLACK_ROOK: return "\033[30mT";
-        case WHITE_QUEEN: return "\033[37mQ";
-        case BLACK_QUEEN: return "\033[30mQ";
-        case WHITE_KING: return "\033[37mK";
-        case BLACK_KING: return "\033[30mK";
+        case WHITE_PAWN: return "\033[37m♟";
+        case BLACK_PAWN: return "\033[30m♟";
+        case WHITE_KNIGHT: return "\033[37m♞";
+        case BLACK_KNIGHT: return "\033[30m♞";
+        case WHITE_BISHOP: return "\033[37m♝";
+        case BLACK_BISHOP: return "\033[30m♝";
+        case WHITE_ROOK: return "\033[37m♜";
+        case BLACK_ROOK: return "\033[30m♜";
+        case WHITE_QUEEN: return "\033[37m♛";
+        case BLACK_QUEEN: return "\033[30m♛";
+        case WHITE_KING: return "\033[37m♚";
+        case BLACK_KING: return "\033[30m♚";
         default: return " ";
     }
 }
